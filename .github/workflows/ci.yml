@@ -1,0 +1,61 @@
+name: CI/CD Workflow
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-and-test:
+    name: Build and Run Tests
+    # Use 'ubuntu-latest' for standard GitHub Actions or 'self-hosted' if using your own EC2
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '22'
+
+      # Install dependencies for backend
+      - name: Install Backend Dependencies
+        working-directory: ./backend
+        run: |
+          npm install
+          npm install --save-dev sinon
+
+      # Install dependencies for frontend
+      - name: Install Frontend Dependencies
+        working-directory: ./frontend
+        run: |
+          npm install
+          npm run build
+
+      # Run backend tests using the test.js we created
+      - name: Run Backend Tests
+        env:
+          MONGO_URI: ${{ secrets.MONGO_URI }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          PORT: ${{ secrets.PORT }}
+        working-directory: ./backend
+        run: npm test
+
+      # Optional: Production deployment steps (from tutor example)
+      - name: Deploy with PM2
+        if: github.ref == 'refs/heads/main'
+        env:
+          PROD_ENV: ${{ secrets.PROD }}
+        run: |
+          cd ./backend
+          echo "$PROD_ENV" > .env
+          # Uncomment the lines below if your server uses PM2
+          # pm2 restart all || pm2 start server.js
+
+
+        
