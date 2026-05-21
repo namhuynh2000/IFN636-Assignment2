@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect } from 'react';
+import { useToast } from '../context/ToastContext.jsx';
 import axiosInstance from '../axiosConfig';
 import TaskModal from '../components/TaskModal';
 
@@ -10,6 +11,8 @@ const Tasks = () => {
   const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [editTask, setEditTask] = useState(null);
+  const [taskToDelete, setTaskToDelete] = useState(null);
+  const [deletingTask, setDeletingTask] = useState(false);
 
   const fetchTasks = async () => {
     setLoading(true);
@@ -21,6 +24,28 @@ const Tasks = () => {
       setError(e.response?.data?.message || 'Failed to fetch tasks.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const { showToast } = useToast();
+
+  const handleDeleteTask = (taskId) => {
+    setTaskToDelete(taskId);
+  };
+
+  const confirmDeleteTask = async () => {
+    if (!taskToDelete) return;
+    setDeletingTask(true);
+
+    try {
+      await axiosInstance.delete(`/api/tasks/${taskToDelete}`);
+      setTasks((prevTasks) => prevTasks.filter((task) => task._id !== taskToDelete));
+      showToast('Task deleted successfully.', 'success');
+      setTaskToDelete(null);
+    } catch (e) {
+      showToast(e.response?.data?.message || 'Failed to delete task.', 'error');
+    } finally {
+      setDeletingTask(false);
     }
   };
 
@@ -157,13 +182,21 @@ const Tasks = () => {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-8">
+                <div className="flex items-center gap-4">
                   <div className={`flex items-center gap-2 px-4 py-1.5 rounded-full ${pill.wrap}`}>
                     <div className={`w-2 h-2 rounded-full ${pill.dot}`} />
                     <span className={`text-xs font-bold uppercase tracking-wider ${pill.text}`}>{t.status}</span>
                   </div>
-                  <button type="button" className="p-2 hover:bg-surface-container-highest rounded-lg transition-colors">
-                    <span className="material-symbols-outlined text-on-surface-variant">more_vert</span>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteTask(t._id);
+                    }}
+                    className="p-2 text-error hover:bg-error/10 rounded-lg transition-colors"
+                    aria-label="Delete task"
+                  >
+                    <span className="material-symbols-outlined">delete</span>
                   </button>
                 </div>
               </div>
@@ -189,7 +222,41 @@ const Tasks = () => {
           await fetchTasks();
           window.dispatchEvent(new Event('sanctuary:tasks-changed'));
         }}
+        onDeleted={async () => {
+          await fetchTasks();
+          window.dispatchEvent(new Event('sanctuary:tasks-changed'));
+        }}
       />
+
+      {taskToDelete && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center px-4 pb-6 sm:items-center sm:pb-0">
+          <div className="absolute inset-0 bg-black/30" onClick={() => setTaskToDelete(null)} />
+          <div className="relative w-full max-w-md rounded-[2rem] border border-outline-variant/60 bg-surface p-6 shadow-2xl">
+            <p className="font-semibold text-on-surface">Confirm delete task</p>
+            <p className="mt-3 text-sm text-on-surface-variant">
+              Are you sure you want to delete this task? This cannot be undone.
+            </p>
+            <div className="mt-6 flex flex-col sm:flex-row gap-3">
+              <button
+                type="button"
+                onClick={() => setTaskToDelete(null)}
+                className="w-full sm:w-auto px-4 py-3 rounded-full bg-surface-container-low text-on-surface hover:bg-surface-container transition-colors font-body font-semibold"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDeleteTask}
+                disabled={deletingTask}
+                className="w-full sm:w-auto px-4 py-3 rounded-full bg-error text-white hover:bg-error/90 transition-colors font-body font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {deletingTask ? 'Deleting...' : 'Delete task'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

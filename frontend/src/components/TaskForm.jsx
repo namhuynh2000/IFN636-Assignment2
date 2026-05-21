@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext.jsx';
 import axiosInstance from '../axiosConfig';
 
 const TaskForm = ({ tasks, setTasks, editingTask, setEditingTask }) => {
   const { user } = useAuth();
+  const { showToast } = useToast();
   const [formData, setFormData] = useState({ title: '', description: '', deadline: '' });
 
   useEffect(() => {
@@ -34,8 +36,9 @@ const TaskForm = ({ tasks, setTasks, editingTask, setEditingTask }) => {
       }
       setEditingTask(null);
       setFormData({ title: '', description: '', deadline: '' });
+      showToast(editingTask ? 'Task updated successfully.' : 'Task created successfully.', 'success');
     } catch (error) {
-      alert('Failed to save task.');
+      showToast('Failed to save task.', 'error');
     }
   };
 

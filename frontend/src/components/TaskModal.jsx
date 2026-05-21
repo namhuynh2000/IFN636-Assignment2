@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import axiosInstance from '../axiosConfig';
+import { useToast } from '../context/ToastContext.jsx';
 
 const CATEGORIES = ['Work', 'Personal', 'Study', 'Urgent'];
 const STATUSES = ['To Do', 'In Progress', 'Done'];
@@ -14,6 +15,7 @@ const toDateInputValue = (value) => {
   return `${yyyy}-${mm}-${dd}`;
 };
 
+
 const TaskModal = ({
   open,
   mode = 'create', // 'create' | 'update'
@@ -21,6 +23,7 @@ const TaskModal = ({
   onClose,
   onCreated,
   onUpdated,
+  onDeleted,
 }) => {
   const [form, setForm] = useState({
     taskName: '',
@@ -31,6 +34,29 @@ const TaskModal = ({
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const { showToast } = useToast();
+
+  const handleDeleteConfirmation = async () => {
+    setShowDeleteConfirm(false);
+    setSubmitting(true);
+    setError('');
+    try {
+      await axiosInstance.delete(`/api/tasks/${task._id}`);
+      showToast('Task deleted successfully.', 'success');
+      if (onDeleted) {
+        await onDeleted();
+      } else {
+        await onUpdated?.();
+      }
+      onClose?.();
+    } catch (err) {
+      showToast('Failed to delete task.', 'error');
+      setError('Failed to delete task.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -89,6 +115,7 @@ const TaskModal = ({
           dueDate: form.dueDate,
         });
         await onCreated?.(res.data);
+        showToast('Task created successfully.', 'success');
       } else {
         const taskId = task?._id;
         if (!taskId) throw new Error('Missing task id');
@@ -100,13 +127,15 @@ const TaskModal = ({
           status: form.status,
         });
         await onUpdated?.(res.data);
+        showToast('Task updated successfully.', 'success');
       }
       onClose?.();
     } catch (err) {
-      setError(
+      const message =
         err.response?.data?.message ||
-          (mode === 'update' ? 'Failed to update task.' : 'Failed to create task.')
-      );
+        (mode === 'update' ? 'Failed to update task.' : 'Failed to create task.');
+      setError(message);
+      showToast(message, 'error');
     } finally {
       setSubmitting(false);
     }
@@ -235,19 +264,9 @@ const TaskModal = ({
           {mode === 'update' && (
             <button
               type="button"
-              onClick={async () => {
-                if (window.confirm("Are you sure you want to delete this task?")) {
-                  setSubmitting(true);
-                  try {
-                    await axiosInstance.delete(`/api/tasks/${task._id}`);
-                    await onUpdated?.(); // Refresh the list
-                    onClose?.(); // Close the modal
-                  } catch (err) {
-                    setError("Failed to delete task.");
-                  } finally {
-                    setSubmitting(false);
-                  }
-                }
+              onClick={() => {
+                setError('');
+                setShowDeleteConfirm(true);
               }}
               className="px-5 py-3 rounded-full text-error hover:bg-error/10 transition-colors font-body font-semibold flex items-center gap-2"
             >
@@ -271,6 +290,37 @@ const TaskModal = ({
             </button>
           </div>
         </form>
+
+        {showDeleteConfirm && (
+          <div className="absolute top-1/2 left-1/2 z-20 w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 px-4">
+            <div className="rounded-[1.5rem] border border-outline-variant/60 bg-surface p-4 shadow-2xl">
+              <div className="flex items-start gap-3">
+                <span className="material-symbols-outlined text-error text-2xl">warning</span>
+                <div className="flex-1">
+                  <p className="font-semibold text-on-surface">Confirm delete task</p>
+                  <p className="text-sm text-on-surface-variant mt-1">This task will be permanently deleted and cannot be undone.</p>
+                </div>
+              </div>
+              <div className="mt-4 flex flex-col sm:flex-row sm:justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="w-full sm:w-auto px-4 py-3 rounded-full bg-surface-container-low text-on-surface hover:bg-surface-container transition-colors font-body font-semibold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDeleteConfirmation}
+                  disabled={submitting}
+                  className="w-full sm:w-auto px-4 py-3 rounded-full bg-error text-white hover:bg-error/90 transition-colors font-body font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {submitting ? 'Deleting...' : 'Delete now'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

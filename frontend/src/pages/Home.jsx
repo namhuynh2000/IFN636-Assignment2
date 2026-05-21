@@ -281,6 +281,9 @@ const Home = () => {
         onUpdated={async () => {
           await fetchHome();
         }}
+        onDeleted={async () => {
+          await fetchHome();
+        }}
       />
     </div>
   );
